@@ -21,7 +21,7 @@ package io.github.floriansalihovic.sling.examples.content;
 import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Service;
 import org.apache.sling.api.SlingHttpServletRequest;
-import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.*;
 import org.apache.sling.servlets.post.Modification;
 import org.apache.sling.servlets.post.SlingPostProcessor;
 
@@ -31,6 +31,8 @@ import java.util.List;
 /**
  * Example implementation of a custom Sling post processor. It is only invoked, when the SlingPostServlet is invoked to
  * create ot manipulate content.
+ * <p/>
+ * The current example is not bound to a resource type so it won"t be updated.
  *
  * @author florian.salihovic@me.com
  * @version 1.0.0
@@ -40,9 +42,10 @@ import java.util.List;
 public class ContentPostProcessor implements SlingPostProcessor {
 
     @Override
-    public void process(SlingHttpServletRequest request, List<Modification> changes) throws Exception {
+    public void process(SlingHttpServletRequest request,
+                        List<Modification> changes) throws Exception {
         final Resource resource = request.getResource();
-        final Node node = resource.adaptTo(Node.class);
+        final Node node = resource.adaptTo(Node.class); // todo adaptation to PersistableValueMap has to be considered.
         if (null != node && node.getPath().startsWith("/content")) {
             node.getProperty("jcr:mixinTypes").setValue("rep:AccessControllable");
         }
