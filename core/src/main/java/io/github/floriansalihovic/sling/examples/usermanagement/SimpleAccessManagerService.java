@@ -22,8 +22,8 @@ import org.apache.jackrabbit.api.security.user.*;
 import org.apache.sling.api.resource.*;
 
 /**
- * Simple service which allows to create users and provides a minimal set of methods to readAccessOnly the user's
- * privileges.
+ * Simple service which allows to create users and provides a minimal set of methods to restrict the access of
+ * resources.
  *
  * @author florian.salihovic@me.com
  * @version 1.0.0
@@ -44,58 +44,47 @@ public interface SimpleAccessManagerService {
                     final String name);
 
     /**
-     * Creates a new group.
-     *
-     * @param resourceResolver
-     *         The ResourceResolver used for resource resolution and adaption.
-     * @param name
-     *         The name of the new user.
-     *
-     * @return The group, if it could be created, {@code null} otherwise.
-     */
-    Group createGroup(final ResourceResolver resourceResolver,
-                      final String name);
-
-    /**
-     * Restricts the user to read access only.
+     * Prints the current access control policies of a resource.
      *
      * @param resourceResolver
      *         The ResourceResolver used for resource resolution and adaption.
      * @param resource
-     *         The resource to modify the access methods for.
-     * @param name
-     *         The name of the user.
-     * @param allow
-     *         If {@code allow} is set to {@code true}, the user may have complete access to a resource, otherwise the
-     *         user is restricted to read access.
+     *         The resource to be modified.
      *
-     * @return {@code true} if the access restriction was changed, {@code false} else.
+     * @return A string representation of the current access control policies of a resource.
      */
-    boolean restrict(final ResourceResolver resourceResolver,
-                     Resource resource,
-                     final String name,
-                     final boolean allow);
-
-    StringBuilder print(ResourceResolver resourceResolver,
-                        Resource resource);
+    String print(ResourceResolver resourceResolver,
+                 Resource resource);
 
     /**
+     * Modifies the resource so that it is accessible and modifiable for the given user or group.
+     *
      * @param resourceResolver
+     *         The ResourceResolver used for resource resolution and adaption. It has to provides administrator level
+     *         rights.
      * @param resource
+     *         The resource to be modified.
      * @param principalName
+     *         The name of the principal who gains complete access to the resource.
      *
-     * @return
+     * @return {@code true} if the change of access rights was successful, {@code false} else.
      */
     boolean resourceAccessibleAndModifiableFor(final ResourceResolver resourceResolver,
                                                final Resource resource,
                                                final String principalName);
 
     /**
-     * @param resourceResolver
-     * @param resource
-     * @param principalName
+     * Modifies the resource so that it is accessible and modifiable for the given user or group.
      *
-     * @return
+     * @param resourceResolver
+     *         The ResourceResolver used for resource resolution and adaption. It has to provides administrator level
+     *         rights.
+     * @param resource
+     *         The resource to be modified.
+     * @param principalName
+     *         The name of the principal who gains read only access to the resource.
+     *
+     * @return {@code true} if the change of access rights was successful, {@code false} else.
      */
     boolean resourceIsReadOnlyFor(final ResourceResolver resourceResolver,
                                   final Resource resource,
@@ -109,8 +98,8 @@ public interface SimpleAccessManagerService {
      * @param resource
      *         The resource to be modified.
      *
-     * @return
+     * @return {@code true} if the change of access rights was successful, {@code false} else.
      */
-    boolean removePoliciesFor(final ResourceResolver resourceResolver,
-                              final Resource resource);
+    boolean removePoliciesForResource(final ResourceResolver resourceResolver,
+                                      final Resource resource);
 }

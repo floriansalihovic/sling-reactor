@@ -18,34 +18,27 @@
  */
 package io.github.floriansalihovic.sling.examples.usermanagement.impl;
 
-import io.github.floriansalihovic.sling.examples.usermanagement.SimpleAccessManagerService;
-import org.apache.felix.scr.annotations.Component;
-import org.apache.felix.scr.annotations.Service;
+import io.github.floriansalihovic.sling.examples.usermanagement.*;
+import org.apache.felix.scr.annotations.*;
 import org.apache.jackrabbit.api.security.principal.*;
-import org.apache.jackrabbit.api.security.user.Authorizable;
-import org.apache.jackrabbit.api.security.user.Group;
-import org.apache.jackrabbit.api.security.user.User;
-import org.apache.jackrabbit.api.security.user.UserManager;
-import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.jcr.base.util.AccessControlUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.jackrabbit.api.security.user.*;
+import org.apache.sling.api.resource.*;
+import org.apache.sling.jcr.base.util.*;
+import org.slf4j.*;
 
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
+import javax.jcr.*;
 import javax.jcr.security.*;
-import java.security.Principal;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.security.*;
+import java.util.*;
 
 /**
  * Implementation of the SimpleAccessManagerService. <p>It requires a ResourceResolver with the necessary privileges to
  * modify user and group nodes.</p>
  * <p/>
- * Some links: http://wiki.apache.org/jackrabbit/UserManagement http://sling.apache.org/site/managing-permissions-jackrabbitaccessmanager.html
+ * Some links:
+ * http://wiki.apache.org/jackrabbit/UserManagement http://sling.apache.org/site/managing-permissions-jackrabbitaccessmanager.html
  * http://sling.apache.org/documentation/bundles/managing-permissions-jackrabbit-accessmanager.html
+ * http://www.day.com/specs/jcr/2.0/16_Access_Control_Management.html
  *
  * @author florian.salihovic@me.com
  * @version 1.0.0
@@ -56,10 +49,13 @@ import java.util.List;
 @Component
 public class SimpleAccessMangerServiceImpl implements SimpleAccessManagerService {
 
+    /**
+     * The privileges which need to be denied to users to avoid any kind of manipulation.
+     */
     private final static List<String> DENIABLE_PRIVILEGES = new ArrayList<String>();
 
     static {
-        DENIABLE_PRIVILEGES.add(Privilege.JCR_READ);
+        // add all privileges to the list which should be denied to a user.
         DENIABLE_PRIVILEGES.add(Privilege.JCR_MODIFY_PROPERTIES);
         DENIABLE_PRIVILEGES.add(Privilege.JCR_ADD_CHILD_NODES);
         DENIABLE_PRIVILEGES.add(Privilege.JCR_REMOVE_NODE);
@@ -104,25 +100,8 @@ public class SimpleAccessMangerServiceImpl implements SimpleAccessManagerService
      * {@inheritDoc}
      */
     @Override
-    public Group createGroup(ResourceResolver resourceResolver,
-                             String name) {
-
-        try {
-            final Session session = resourceResolver.adaptTo(Session.class);
-            // the user manager used for user creation
-            final UserManager userManager = AccessControlUtil.getUserManager(session);
-            // if it was not set to true, the session had to be used to save the newly created content.
-            userManager.autoSave(true);
-            return userManager.createGroup(userManager.getAuthorizable("administrators").getPrincipal(), name);
-        } catch (RepositoryException e) {
-            logger.error(e.getMessage(), e);
-            return null;
-        }
-    }
-
-    @Override
-    public StringBuilder print(ResourceResolver resourceResolver,
-                               Resource resource) {
+    public String print(ResourceResolver resourceResolver,
+                        Resource resource) {
 
         final Session session = resourceResolver.adaptTo(Session.class);
         final String path = resource.getPath();
@@ -133,7 +112,7 @@ public class SimpleAccessMangerServiceImpl implements SimpleAccessManagerService
         } catch (RepositoryException e) {
             logger.error(e.getMessage(), e);
             stringBuilder.setLength(0);
-            return stringBuilder.append(e.getMessage());
+            return stringBuilder.append(e.getMessage()).toString();
         }
 
         try {
@@ -174,99 +153,7 @@ public class SimpleAccessMangerServiceImpl implements SimpleAccessManagerService
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
         }
-        return stringBuilder;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean restrict(ResourceResolver resourceResolver,
-                            Resource resource,
-                            String name,
-                            final boolean isAllow) {
-
-        final Session session = resourceResolver.adaptTo(Session.class);
-        final String path = resource.getPath();
-
-        try {
-            final UserManager userManager = AccessControlUtil.getUserManager(session);
-
-            final Authorizable authorizable = userManager.getAuthorizable(name);
-            final AccessControlManager accessControlManager = AccessControlUtil.getAccessControlManager(session);
-            final AccessControlPolicyIterator iterator = accessControlManager.getApplicablePolicies(path);
-
-            while (iterator.hasNext()) {
-                AccessControlPolicy applicablePolicy = iterator.nextAccessControlPolicy();
-                // the user's control list may grow a lot, so this specific use case the implementation will delete
-                // all existing entries and add the allowed or denied properties to always understand in which state
-                // we're in. The second aspect to consider is having acl inheritance. If path /a/b/c is restricted for
-                // a user, path /a/b/c/d will inherit all entries.
-                // it's also important to consider that "denys" should be preferred over "allow"
-
-                // other policies may be in use as well.
-
-                final Privilege[] denyPrivileges = getDeniedPrivilegesForReadOnlyUsers(accessControlManager);
-                final Privilege[] allowPrivileges = getPrivilegesFromNames(accessControlManager,
-                        Arrays.asList(Privilege.JCR_READ));
-                if (applicablePolicy instanceof AccessControlList) {
-                    final AccessControlList accessControlList = (AccessControlList) applicablePolicy;
-                    final AccessControlEntry[] accessControlEntries = accessControlList.getAccessControlEntries();
-
-                    for (AccessControlEntry entry : accessControlEntries) {
-                        final String principalName = entry.getPrincipal().getName();
-                        final Privilege[] privileges = entry.getPrivileges();
-
-                        if (privileges.length > 0) {
-                            for (Privilege privilege : privileges) {
-                                logger.info("\n\tapplicable ace principal {}, privilege {}", principalName, privilege.getName());
-                            }
-                        } else {
-                            logger.debug("\n\tno privileges ");
-                        }
-                    }
-                    if (isAllow) {
-                        accessControlList.addAccessControlEntry(authorizable.getPrincipal(), new Privilege[]{accessControlManager.privilegeFromName(Privilege.JCR_READ)});
-                        accessControlManager.setPolicy(path, accessControlList);
-                        session.save();
-                    }
-
-                    // badly documented
-                    // for jcr based implementations see http://wiki.apache.org/jackrabbit/AccessControl
-                    if (null != authorizable) {
-                        final Principal principal = authorizable.getPrincipal();
-                        if (isAllow) {
-                            final List<Privilege> all = new ArrayList<Privilege>();
-                            all.addAll(Arrays.asList(denyPrivileges));
-                            all.addAll(Arrays.asList(allowPrivileges));
-                            AccessControlUtil.addEntry(accessControlList, principal, all.toArray(new Privilege[all.size()]), true);
-                        } else {
-                            AccessControlUtil.addEntry(accessControlList, principal, denyPrivileges, false);
-                            AccessControlUtil.addEntry(accessControlList, principal, allowPrivileges, true);
-                        }
-                        accessControlManager.setPolicy(path, accessControlList);
-                        session.save();
-                    }
-                }
-            }
-        } catch (RepositoryException e) {
-            logger.error(e.getMessage(), e);
-        }
-
-        return true;
-    }
-
-    /**
-     * Returns an array of javax.jcr.security.Privilege which restrict access to a resource/node/path.
-     *
-     * @param accessControlManager
-     *         The AccessControlManager providing a factory method for creating Privileges.
-     *
-     * @return The array of privileges being created.
-     */
-    private Privilege[] getDeniedPrivilegesForReadOnlyUsers(final AccessControlManager accessControlManager) {
-
-        return getPrivilegesFromNames(accessControlManager, DENIABLE_PRIVILEGES);
+        return stringBuilder.toString();
     }
 
     /**
@@ -298,6 +185,9 @@ public class SimpleAccessMangerServiceImpl implements SimpleAccessManagerService
         return privileges;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean resourceIsReadOnlyFor(final ResourceResolver resourceResolver,
                                          final Resource resource,
@@ -308,9 +198,9 @@ public class SimpleAccessMangerServiceImpl implements SimpleAccessManagerService
         try {
             final AccessControlManager accessControlManager = AccessControlUtil.getAccessControlManager(session);
             final PrincipalManager principalManager = AccessControlUtil.getPrincipalManager(session);
-            final Principal principal = principalManager.getPrincipal(principalName);
 
             final AccessControlPolicy[] policies = accessControlManager.getPolicies(resourcePath);
+            final Principal principal = principalManager.getPrincipal(principalName);
 
             for (AccessControlPolicy policy : policies) {
                 if (policy instanceof AccessControlList) {
@@ -320,6 +210,9 @@ public class SimpleAccessMangerServiceImpl implements SimpleAccessManagerService
                             list.removeAccessControlEntry(entry);
                         }
                     }
+
+                    AccessControlUtil.addEntry(list, principal,
+                            getPrivilegesFromNames(accessControlManager, DENIABLE_PRIVILEGES), false);
 
                     list.addAccessControlEntry(principal,
                             new Privilege[]{accessControlManager.privilegeFromName(Privilege.JCR_READ)});
@@ -335,9 +228,12 @@ public class SimpleAccessMangerServiceImpl implements SimpleAccessManagerService
         return true;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public boolean removePoliciesFor(final ResourceResolver resourceResolver,
-                                     final Resource resource) {
+    public boolean removePoliciesForResource(final ResourceResolver resourceResolver,
+                                             final Resource resource) {
 
         final Session session = resourceResolver.adaptTo(Session.class);
         final String resourcePath = resource.getPath();
@@ -363,17 +259,23 @@ public class SimpleAccessMangerServiceImpl implements SimpleAccessManagerService
         return true;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean resourceAccessibleAndModifiableFor(final ResourceResolver resourceResolver,
                                                       final Resource resource,
                                                       final String principalName) {
-
         final Session session = resourceResolver.adaptTo(Session.class);
         final String resourcePath = resource.getPath();
 
         try {
             final AccessControlManager accessControlManager = AccessControlUtil.getAccessControlManager(session);
+            final PrincipalManager principalManager = AccessControlUtil.getPrincipalManager(session);
+
             final AccessControlPolicy[] effectivePolicies = accessControlManager.getPolicies(resourcePath);
+            final Principal principal = principalManager.getPrincipal(principalName);
+
             for (AccessControlPolicy policy : effectivePolicies) {
                 if (policy instanceof AccessControlList) {
                     AccessControlList list = (AccessControlList) policy;
@@ -382,6 +284,13 @@ public class SimpleAccessMangerServiceImpl implements SimpleAccessManagerService
                             list.removeAccessControlEntry(entry);
                         }
                     }
+                    accessControlManager.setPolicy(resourcePath, policy);
+
+                    AccessControlUtil.addEntry(list, principal,
+                            getPrivilegesFromNames(accessControlManager, DENIABLE_PRIVILEGES), true);
+
+                    list.addAccessControlEntry(principal,
+                            new Privilege[]{accessControlManager.privilegeFromName(Privilege.JCR_READ)});
                     accessControlManager.setPolicy(resourcePath, policy);
                 }
             }
@@ -394,6 +303,19 @@ public class SimpleAccessMangerServiceImpl implements SimpleAccessManagerService
         return true;
     }
 
+    /**
+     * Utility method to print the access control entries of a access control policy.
+     *
+     * @param acp
+     *         The access control policy to print the contents from.
+     * @param stringBuilder
+     *         The string builder collecting the entry information.
+     *
+     * @return The StingBuilder passed.
+     *
+     * @throws RepositoryException
+     *         when a {@code RepositoryException} is thrown while accessing the acls.
+     */
     private StringBuilder printAccessControlLists(final AccessControlPolicy acp,
                                                   final StringBuilder stringBuilder)
             throws RepositoryException {
