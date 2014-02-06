@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+curl --user admin:admin -F:name=flintstones http://localhost:8080/system/userManager/group.create.html
+curl --user admin:admin -F:name=rumbles http://localhost:8080/system/userManager/group.create.html
+
+curl --user admin:admin -F:name=fred -Fpwd=fred -FpwdConfirm=fred http://localhost:8080/system/userManager/user.create.html
+curl --user admin:admin -F:name=wilma -Fpwd=wilma -FpwdConfirm=wilma http://localhost:8080/system/userManager/user.create.html
+curl --user admin:admin -F:name=barney -Fpwd=barney -FpwdConfirm=barney http://localhost:8080/system/userManager/user.create.html
+curl --user admin:admin -F:name=betty -Fpwd=betty -FpwdConfirm=betty http://localhost:8080/system/userManager/user.create.html
+
+curl --user admin:admin -F ":member=/system/userManager/user/fred" http://localhost:8080/system/userManager/group/flintstones.update.html
+curl --user admin:admin -F ":member=/system/userManager/user/wilma" http://localhost:8080/system/userManager/group/flintstones.update.html
+curl --user admin:admin -F ":member=/system/userManager/user/barney" http://localhost:8080/system/userManager/group/rumbles.update.html
+curl --user admin:admin -F ":member=/system/userManager/user/betty" http://localhost:8080/system/userManager/group/rumbles.update.html
